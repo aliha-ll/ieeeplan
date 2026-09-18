@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Board roster builder</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ui:#0d5c63;
+  --ink:#17212b;
+  --muted:#66727f;
+  --line:#d8dee5;
+  /* document theme (set from JS) */
+  --accent:#0d5c63;
+  --accent-text:#0d5c63;
+  --on:#ffffff;
+  --tint:#e7eff0;
+  --tint2:#b6cfd2;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:'Figtree',system-ui,-apple-system,'Segoe UI',Tahoma,'Noto Sans Arabic',sans-serif;
+  font-size:14px;color:var(--ink);background:#e6eaee;overflow:hidden;
+}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid #2a7fdc;outline-offset:2px}
+
+/* ---------- App shell ---------- */
+.top{height:56px;display:flex;align-items:center;gap:14px;padding:0 20px;background:#fff;border-bottom:1px solid var(--line)}
+.brand{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:21px;margin-right:auto;white-space:nowrap}
+.tabs{display:none;border:1px solid #c3ccd5;border-radius:8px;overflow:hidden}
+.tabs button{border:0;background:#fff;height:34px;padding:0 14px;font-weight:600;cursor:pointer}
+body[data-view="edit"] .tabs [data-tab="edit"],
+body[data-view="preview"] .tabs [data-tab="preview"]{background:var(--ui);color:#fff}
+.app{
+  display:grid;grid-template-columns:minmax(380px,480px) minmax(0,1fr);
+  height:calc(100vh - 56px);height:calc(100dvh - 56px);
+}
+.editor{overflow:auto;padding:16px 16px 60px;background:#f4f6f8;border-right:1px solid var(--line)}
+.preview{overflow:auto;background:#dde3e9;padding:0 20px 30px}
+
+/* ---------- Buttons & inputs ---------- */
+.btn{
+  height:34px;padding:0 14px;border:1px solid #c3ccd5;background:#fff;border-radius:7px;
+  cursor:pointer;font-weight:600;white-space:nowrap;
+}
+.btn:hover{background:#f1f4f7}
+.btn.primary{background:var(--ui);border-color:var(--ui);color:#fff;height:38px;padding:0 18px}
+.btn.primary:hover{background:#094349}
+.btn.primary:disabled{opacity:.6;cursor:wait}
+.btn.sm{height:30px;padding:0 10px;font-size:13px}
+.btn.danger:hover{color:#a3261c;border-color:#e2b3ae;background:#fdf3f2}
+input[type=text],select{
+  height:34px;border:1px solid #c3ccd5;border-radius:6px;padding:0 10px;background:#fff;min-width:0;
+}
+input[type=text]:focus,select:focus{border-color:var(--ui);outline:2px solid rgba(13,92,99,.25);outline-offset:0}
+input[type=color]{width:38px;height:28px;padding:0;border:1px solid #c3ccd5;border-radius:6px;background:#fff;cursor:pointer}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--ui)}
+
+/* ---------- Editor panels ---------- */
+.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.panel h2{font-family:'Fraunces',Georgia,serif;font-size:17px;font-weight:600;margin:0 0 12px}
+.fld{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:10px}
+.fld input{display:block;width:100%;margin-top:4px;font-weight:400;color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin:2px 0 4px}
+.inline,.chk{display:inline-flex;align-items:center;gap:8px;font-weight:500}
+.logo-row{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #edf0f3}
+.logo-th{height:36px;max-width:110px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px;background:#fff}
+.muted{color:var(--muted)}
+
+.item.divider{border-left:4px solid var(--ui);background:#f2f8f8}
+.ih{display:flex;align-items:center;gap:8px}
+.fold{
+  width:28px;height:28px;border:1px solid transparent;background:transparent;border-radius:6px;cursor:pointer;
+  color:#5a6672;padding:0;flex:none;transition:transform .15s;
+}
+.fold:hover{background:#eef1f4}
+.item.collapsed .fold{transform:rotate(-90deg)}
+.iname{flex:1;font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:16px}
+.tools{display:flex;gap:2px;flex:none}
+.ib{width:26px;height:26px;border:1px solid transparent;background:transparent;border-radius:5px;cursor:pointer;color:#5a6672;padding:0;line-height:1}
+.ib:hover:not(:disabled){background:#eef1f4;border-color:#d3dae1}
+.ib.del:hover:not(:disabled){color:#a3261c;background:#fdf3f2;border-color:#e2b3ae}
+.ib:disabled{opacity:.3;cursor:default}
+.ibody{margin-top:12px}
+.ibody .opts{padding-bottom:6px}
+.opts label select{margin-left:6px;height:30px}
+
+.mem{display:grid;grid-template-columns:54px minmax(0,1fr) 26px;gap:10px;padding:10px 0;border-top:1px solid #edf0f3;align-items:start}
+.avwrap{position:relative;width:54px;height:54px}
+.av{
+  width:54px;height:54px;border-radius:50%;border:2px dashed #a9b5c0;background:#f1f4f7 center/cover no-repeat;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;color:#7b8794;padding:0;
+}
+.av:hover{border-color:var(--ui);color:var(--ui)}
+.av.has{border:2px solid var(--ui)}
+.av.drop{outline:3px solid var(--ui);outline-offset:1px}
+.av-x{
+  position:absolute;right:-5px;top:-5px;width:20px;height:20px;border-radius:50%;border:1px solid #c3ccd5;
+  background:#fff;font-size:13px;line-height:1;cursor:pointer;padding:0;color:#5a6672;
+}
+.av-x:hover{color:#a3261c;border-color:#e2b3ae}
+.fields{display:grid;gap:6px;min-width:0}
+.fields input{width:100%}
+.fields .two{display:grid;grid-template-columns:3fr 2fr;gap:6px}
+.mem.empty input[data-field="name"]{border-style:dashed}
+.hint{font-size:12px;color:var(--muted)}
+.mem:not(.empty) .hint{display:none}
+.mbtns{display:flex;flex-direction:column;gap:2px}
+.addmem{margin-top:8px}
+.addbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.proj{display:flex;flex-wrap:wrap;gap:8px}
+.note{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.45}
+
+/* ---------- Preview ---------- */
+.scaler{margin:20px auto 0}
+.stage{width:794px;display:flex;flex-direction:column;gap:24px;transform-origin:top left}
+.stage .sheet{box-shadow:0 1px 3px rgba(20,30,40,.16),0 10px 30px rgba(20,30,40,.12)}
+.measure{position:fixed;left:-10000px;top:0;width:794px;visibility:hidden;pointer-events:none}
+.export-holder{position:absolute;left:0;top:0;z-index:1;pointer-events:none}
+
+/* ---------- Toast & overlay ---------- */
+#toast{
+  position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#17212b;color:#fff;
+  padding:10px 16px;border-radius:8px;max-width:min(92vw,520px);opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;z-index:2000;font-weight:500;
+}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#overlay{position:fixed;inset:0;z-index:1000;background:#e6eaee;display:flex;align-items:center;justify-content:center}
+#overlay[hidden]{display:none}
+.ov-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px 34px;text-align:center;min-width:260px}
+.ov-card p{margin:14px 0 0;font-weight:600}
+.spin{width:30px;height:30px;margin:0 auto;border:3px solid #cfe0e2;border-top-color:var(--ui);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}.fold,#toast{transition:none}}
+
+/* ---------- The document itself (what becomes the PDF) ---------- */
+.sheet{
+  width:794px;height:1123px;flex:none;background:#fff;color:var(--ink);
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+  font-family:'Figtree',system-ui,-apple-system,'Segoe UI',Tahoma,'Noto Sans Arabic',sans-serif;
+}
+.sheet .strip{height:12px;background:var(--accent);flex:none}
+.sheet .mast{background:var(--accent);color:var(--on);text-align:center;padding:40px 56px 36px;flex:none}
+.sheet .logo{display:block;margin:0 auto 18px;max-height:76px;max-width:250px;background:#fff;border-radius:12px;padding:8px}
+.sheet .org{font-size:16px;font-weight:600;opacity:.88;margin-bottom:8px;overflow-wrap:anywhere}
+.sheet .mast h1{
+  font-family:'Fraunces',Georgia,'Noto Serif Arabic',serif;font-weight:600;font-size:46px;line-height:1.1;
+  letter-spacing:-.01em;margin:0;overflow-wrap:anywhere;
+}
+.sheet .sub{font-size:17px;margin-top:12px;opacity:.92;overflow-wrap:anywhere}
+.sheet .body{flex:1;min-height:0;overflow:hidden;padding:34px 56px 0}
+.sheet .blk{padding-bottom:28px}
+.sheet .dv{
+  background:var(--tint);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);
+  text-align:center;padding:13px 18px;margin-bottom:30px;
+  font-family:'Fraunces',Georgia,'Noto Serif Arabic',serif;font-weight:600;font-size:25px;line-height:1.2;
+}
+.sheet .st{display:flex;align-items:center;gap:18px;margin-bottom:24px}
+.sheet .st i{flex:1;height:2px;background:var(--tint2)}
+.sheet .st span{
+  font-family:'Fraunces',Georgia,'Noto Serif Arabic',serif;font-weight:600;font-size:22px;line-height:1.2;
+  text-align:center;max-width:72%;
+}
+.sheet .row{display:flex;justify-content:center;gap:0 14px}
+.sheet .card{flex:0 0 calc((100% - (var(--cols) - 1) * 14px) / var(--cols));min-width:0;text-align:center}
+.sheet .c1{--ph:150px}.sheet .c2{--ph:128px}.sheet .c3{--ph:112px}.sheet .c4{--ph:100px}.sheet .c5{--ph:84px}
+.sheet .ring{
+  width:calc(var(--ph) + 14px);height:calc(var(--ph) + 14px);border:2px solid var(--accent);border-radius:50%;
+  padding:5px;margin:0 auto 12px;
+}
+.sheet .ph{width:100%;height:100%;border-radius:50%;background-color:var(--tint2);background-size:cover;background-position:center}
+.sheet .ph.ini{
+  display:flex;align-items:center;justify-content:center;color:var(--ink);font-weight:600;
+  font-family:'Fraunces',Georgia,serif;font-size:calc(var(--ph) * 0.34);
+}
+.sheet .nm{font-weight:700;font-size:15.5px;line-height:1.25;overflow-wrap:anywhere;unicode-bidi:plaintext}
+.sheet .c4 .nm{font-size:14.5px}
+.sheet .c5 .nm{font-size:13.5px}
+.sheet .rl{color:var(--accent-text);font-weight:600;font-size:13.5px;margin-top:3px;overflow-wrap:anywhere}
+.sheet .sid{color:#69757f;font-size:12.5px;margin-top:3px;font-variant-numeric:tabular-nums}
+.sheet .ft{
+  flex:none;margin:0 56px;height:48px;border-top:1px solid #e2e6ea;display:flex;justify-content:space-between;
+  align-items:center;font-size:12px;color:#77828d;
+}
+.sheet .empty-note{padding:60px 0;text-align:center;color:#77828d;font-size:15px}
+
+/* ---------- Small screens ---------- */
+@media (max-width:900px){
+  .tabs{display:flex}
+  .brand{font-size:18px}
+  .btn.primary{padding:0 12px}
+  .app{grid-template-columns:minmax(0,1fr)}
+  body[data-view="edit"] .preview{display:none}
+  body[data-view="preview"] .editor{display:none}
+  .editor{border-right:0}
+  .preview{padding:0 10px 30px}
+  .top{padding:0 12px;gap:10px}
+  .tabs{margin-right:auto}
+  .brand{margin-right:0}
+}
+@media (max-width:560px){
+  .brand{display:none}
+}
+</style>
+</head>
+<body data-view="edit">
+
+<header class="top">
+  <div class="brand">Board roster</div>
+  <div class="tabs" role="tablist" aria-label="View">
+    <button type="button" data-tab="edit" role="tab">Edit</button>
+    <button type="button" data-tab="preview" role="tab">Preview</button>
+  </div>
+  <button type="button" class="btn primary" id="downloadBtn">Download PDF</button>
+</header>
+
+<main class="app">
+  <aside class="editor" id="editor" aria-label="Roster editor"></aside>
+  <section class="preview" id="preview" aria-label="PDF preview">
+    <div class="scaler" id="scaler"><div class="stage" id="stage"></div></div>
+  </section>
+</main>
+
+<div class="measure" id="measure" aria-hidden="true"></div>
+<div class="export-holder" id="exportHolder" aria-hidden="true"></div>
+<div id="overlay" hidden role="status" aria-live="polite">
+  <div class="ov-card"><div class="spin"></div><p id="ovText">Preparing PDF…</p></div>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<input type="file" id="photoInput" accept="image/*" hidden>
+<input type="file" id="logoInput" accept="image/*" hidden>
+<input type="file" id="projectInput" accept=".json,application/json" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ================= Helpers ================= */
+const A4W = 794, A4H = 1123;
+const KEY = 'board-roster-builder-v1';
+const $ = id => document.getElementById(id);
+const uid = () => Math.random().toString(36).slice(2, 9);
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const initials = name => {
+  const p = String(name).trim().split(/\s+/).filter(Boolean);
+  if (!p.length) return '';
+  return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase();
+};
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 4000);
+}
+
+/* ================= Data ================= */
+const person = (role, name = '', sid = '', photo = '') => ({ id: uid(), role, name, sid, photo });
+const section = (name, cols, members) =>
+  ({ id: uid(), type: 'section', name, cols, pageBreak: false, collapsed: false, members });
+const divider = name => ({ id: uid(), type: 'divider', name, pageBreak: false, collapsed: false });
+
+function defaults() {
+  return {
+    org: '',
+    title: 'Executive Board',
+    subtitle: '',
+    accent: '#0d5c63',
+    showIds: true,
+    logo: '',
+    items: [
+      section('', 4, [
+        person('President'),
+        person('Vice President'),
+        person('Treasurer'),
+        person('Secretary')
+      ]),
+      divider('Executive Board Members'),
+      section('Advisory Council', 3, [
+        person('Member'),
+        person('Member'),
+        person('Member')
+      ]),
+      section('Academic & Events Directors', 2, [
+        person('Director'),
+        person('Director')
+      ]),
+      section('Directors of Projects', 2, [
+        person('Director'),
+        person('Director')
+      ]),
+      section('Student Representatives', 2, [
+        person('Representative'),
+        person('Representative')
+      ]),
+      section('Media Team', 3, [
+        person('Member'), person('Member'), person('Member')
+      ])
+    ]
+  };
+}
+
+const str = (v, max = 200) => typeof v === 'string' ? v.slice(0, max) : '';
+const safeImg = p => (typeof p === 'string' && p.startsWith('data:image/') && !/["')\s]/.test(p)) ? p : '';
+
+function sanitize(d) {
+  if (!d || typeof d !== 'object' || !Array.isArray(d.items)) return null;
+  const out = {
+    org: str(d.org), title: str(d.title), subtitle: str(d.subtitle),
+    accent: /^#[0-9a-f]{6}$/i.test(d.accent) ? d.accent : '#0d5c63',
+    showIds: d.showIds !== false,
+    logo: safeImg(d.logo),
+    items: []
+  };
+  for (const it of d.items) {
+    if (!it || typeof it !== 'object') continue;
+    if (it.type === 'divider') {
+      out.items.push({ id: uid(), type: 'divider', name: str(it.name), pageBreak: !!it.pageBreak, collapsed: false });
+    } else if (it.type === 'section') {
+      out.items.push({
+        id: uid(), type: 'section', name: str(it.name),
+        cols: clamp(parseInt(it.cols, 10) || 3, 1, 5),
+        pageBreak: !!it.pageBreak, collapsed: false,
+        members: (Array.isArray(it.members) ? it.members : []).map(m => ({
+          id: uid(), role: str(m && m.role), name: str(m && m.name),
+          sid: str(m && m.sid, 40), photo: safeImg(m && m.photo)
+        }))
+      });
+    }
+  }
+  return out;
+}
+
+let state;
+try {
+  const raw = localStorage.getItem(KEY);
+  state = raw ? sanitize(JSON.parse(raw)) : null;
+} catch (e) { state = null; }
+if (!state) state = defaults();
+
+let saveTimer, saveWarned = false;
+function saveSoon() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) {
+      if (!saveWarned) {
+        saveWarned = true;
+        toast("Couldn't auto-save in this browser. Use Save project to keep your work.");
+      }
+    }
+  }, 400);
+}
+
+/* ================= Theme ================= */
+function applyTheme() {
+  const n = parseInt(state.accent.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  const mix = (c, t) => Math.round(c * t + 255 * (1 - t));
+  const dark = (c) => Math.round(c * 0.55);
+  const root = document.documentElement.style;
+  root.setProperty('--accent', state.accent);
+  root.setProperty('--on', lum > 165 ? '#17212b' : '#ffffff');
+  root.setProperty('--accent-text', lum > 150 ? `rgb(${dark(r)},${dark(g)},${dark(b)})` : state.accent);
+  root.setProperty('--tint', `rgb(${mix(r, .10)},${mix(g, .10)},${mix(b, .10)})`);
+  root.setProperty('--tint2', `rgb(${mix(r, .30)},${mix(g, .30)},${mix(b, .30)})`);
+}
+
+/* ================= Document builder (preview + PDF share this) ================= */
+function cardHTML(m) {
+  const photo = m.photo
+    ? `<div class="ph" style="background-image:url('${m.photo}')"></div>`
+    : `<div class="ph ini">${esc(initials(m.name))}</div>`;
+  return `<div class="card"><div class="ring">${photo}</div>` +
+    `<div class="nm" dir="auto">${esc(m.name)}</div>` +
+    (m.role ? `<div class="rl" dir="auto">${esc(m.role)}</div>` : '') +
+    (state.showIds && m.sid ? `<div class="sid">ID ${esc(m.sid)}</div>` : '') +
+    `</div>`;
+}
+
+function mastHTML() {
+  return (state.logo ? `<img class="logo" alt="" src="${state.logo}">` : '') +
+    (state.org.trim() ? `<div class="org" dir="auto">${esc(state.org)}</div>` : '') +
+    `<h1 dir="auto">${esc(state.title)}</h1>` +
+    (state.subtitle.trim() ? `<div class="sub" dir="auto">${esc(state.subtitle)}</div>` : '');
+}
+
+function collectBlocks() {
+  const blocks = [];
+  let pending = [], pendingBreak = false;
+  for (const it of state.items) {
+    if (it.type === 'divider') {
+      if (it.name.trim()) pending.push(`<div class="dv" dir="auto">${esc(it.name)}</div>`);
+      pendingBreak = pendingBreak || it.pageBreak;
+      continue;
+    }
+    const people = it.members.filter(m => m.name.trim());
+    if (!people.length) continue;
+    const cols = it.cols;
+    for (let i = 0, r = 0; i < people.length; i += cols, r++) {
+      let html = '';
+      if (r === 0) {
+        html += pending.join('');
+        if (it.name.trim()) html += `<div class="st"><i></i><span dir="auto">${esc(it.name)}</span><i></i></div>`;
+      }
+      html += `<div class="row c${cols}" style="--cols:${cols}">${people.slice(i, i + cols).map(cardHTML).join('')}</div>`;
+      blocks.push({ html, breakBefore: r === 0 && (it.pageBreak || pendingBreak) });
+      if (r === 0) { pending = []; pendingBreak = false; }
+    }
+  }
+  return blocks;
+}
+
+/* Builds A4 sheets inside `container` (which must be attached to the document
+   so heights can be measured) and returns them. */
+function buildSheets(container) {
+  container.innerHTML = '';
+  const sheets = [];
+  const blocks = collectBlocks();
+  let page = null;
+
+  const newPage = () => {
+    const s = document.createElement('div');
+    s.className = 'sheet';
+    const first = sheets.length === 0;
+    s.innerHTML = (first ? `<div class="mast">${mastHTML()}</div>` : `<div class="strip"></div>`) +
+      `<div class="body"></div><div class="ft"><span></span><span></span></div>`;
+    container.appendChild(s);
+    sheets.push(s);
+    page = { body: s.querySelector('.body'), n: 0 };
+  };
+
+  newPage();
+  if (!blocks.length) {
+    page.body.innerHTML = '<div class="empty-note">Add at least one name to see it here.</div>';
+  }
+  for (const b of blocks) {
+    if (b.breakBefore && page.n > 0) newPage();
+    const el = document.createElement('div');
+    el.className = 'blk';
+    el.innerHTML = b.html;
+    page.body.appendChild(el);
+    page.n++;
+    if (page.n > 1 && page.body.scrollHeight > page.body.clientHeight + 1) {
+      page.body.removeChild(el);
+      newPage();
+      page.body.appendChild(el);
+      page.n++;
+    }
+  }
+  const total = sheets.length;
+  const label = (state.org.trim() || state.title.trim());
+  sheets.forEach((s, i) => {
+    const spans = s.querySelectorAll('.ft span');
+    spans[0].textContent = label;
+    spans[1].textContent = `Page ${i + 1} of ${total}`;
+  });
+  return { sheets, hasContent: blocks.length > 0 };
+}
+
+/* ================= Preview ================= */
+const stage = $('stage'), scaler = $('scaler'), previewPane = $('preview'), measure = $('measure');
+
+function fitPreview() {
+  const avail = previewPane.clientWidth - (window.innerWidth <= 900 ? 20 : 40);
+  if (avail <= 0) return;
+  const s = Math.min(1, avail / A4W);
+  stage.style.transform = `scale(${s})`;
+  scaler.style.width = (A4W * s) + 'px';
+  scaler.style.height = (stage.offsetHeight * s) + 'px';
+}
+function renderPreview() {
+  const { sheets } = buildSheets(measure);
+  stage.replaceChildren(...sheets);
+  fitPreview();
+}
+let previewTimer;
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(renderPreview, 120);
+}
+new ResizeObserver(fitPreview).observe(previewPane);
+
+/* ================= Editor ================= */
+const editor = $('editor');
+let focusSel = null;
+
+const CAMERA = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const CHEVRON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+
+function docPanel() {
+  return `<section class="panel">
+    <h2>Document</h2>
+    <div class="grid2">
+      <label class="fld">Organization<input type="text" data-doc="org" value="${esc(state.org)}" placeholder="Club or society name"></label>
+      <label class="fld">Title<input type="text" data-doc="title" value="${esc(state.title)}"></label>
+    </div>
+    <label class="fld">Subtitle<input type="text" data-doc="subtitle" value="${esc(state.subtitle)}" placeholder="For example, Academic year 2026–2027"></label>
+    <div class="opts">
+      <label class="inline">Accent color <input type="color" data-doc="accent" value="${esc(state.accent)}"></label>
+      <label class="chk"><input type="checkbox" data-doc="showIds" ${state.showIds ? 'checked' : ''}> Show student IDs</label>
+    </div>
+    <div class="logo-row">
+      ${state.logo ? `<img class="logo-th" src="${state.logo}" alt="Logo preview">` : '<span class="muted">No logo</span>'}
+      <button type="button" class="btn sm" data-act="logo">${state.logo ? 'Change logo' : 'Add logo'}</button>
+      ${state.logo ? '<button type="button" class="btn sm" data-act="rm-logo">Remove</button>' : ''}
+    </div>
+  </section>`;
+}
+
+function memberHTML(m, i, n) {
+  const empty = !m.name.trim();
+  return `<div class="mem ${empty ? 'empty' : ''}" data-mem="${m.id}">
+    <div class="avwrap">
+      <button type="button" class="av ${m.photo ? 'has' : ''}" data-act="photo" aria-label="Choose photo"
+        ${m.photo ? `style="background-image:url('${m.photo}')"` : ''}>${m.photo ? '' : CAMERA}</button>
+      ${m.photo ? '<button type="button" class="av-x" data-act="rm-photo" aria-label="Remove photo">×</button>' : ''}
+    </div>
+    <div class="fields">
+      <input type="text" data-field="name" dir="auto" value="${esc(m.name)}" placeholder="Full name" aria-label="Full name">
+      <div class="two">
+        <input type="text" data-field="role" dir="auto" value="${esc(m.role)}" placeholder="Position" aria-label="Position">
+        <input type="text" data-field="sid" value="${esc(m.sid)}" placeholder="Student ID" aria-label="Student ID" inputmode="numeric">
+      </div>
+      <div class="hint">Hidden from the PDF until you add a name.</div>
+    </div>
+    <div class="mbtns">
+      <button type="button" class="ib" data-act="up-mem" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button type="button" class="ib" data-act="down-mem" aria-label="Move down" ${i === n - 1 ? 'disabled' : ''}>↓</button>
+      <button type="button" class="ib del" data-act="del-mem" aria-label="Remove person">×</button>
+    </div>
+  </div>`;
+}
+
+function itemHTML(it, i, n) {
+  const isDiv = it.type === 'divider';
+  return `<section class="panel item ${isDiv ? 'divider' : ''} ${it.collapsed ? 'collapsed' : ''}" data-item="${it.id}">
+    <div class="ih">
+      <button type="button" class="fold" data-act="fold" aria-label="${it.collapsed ? 'Expand' : 'Collapse'}" aria-expanded="${!it.collapsed}">${CHEVRON}</button>
+      <input type="text" class="iname" data-field="name" dir="auto" value="${esc(it.name)}"
+        placeholder="${isDiv ? 'Divider heading' : 'Section title (optional)'}" aria-label="${isDiv ? 'Divider heading' : 'Section title'}">
+      <div class="tools">
+        <button type="button" class="ib" data-act="up-item" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="ib" data-act="down-item" aria-label="Move down" ${i === n - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="ib del" data-act="del-item" aria-label="Delete">×</button>
+      </div>
+    </div>
+    ${it.collapsed ? '' : `<div class="ibody">
+      <div class="opts">
+        ${isDiv ? '' : `<label class="inline">Cards per row
+          <select data-field="cols">${[1, 2, 3, 4, 5].map(c => `<option value="${c}" ${c === it.cols ? 'selected' : ''}>${c}</option>`).join('')}</select></label>`}
+        <label class="chk"><input type="checkbox" data-field="pageBreak" ${it.pageBreak ? 'checked' : ''}> Start on a new page</label>
+      </div>
+      ${isDiv ? '<p class="note" style="margin-top:4px">A full-width heading band. It stays with the section that follows it.</p>' :
+        it.members.map((m, k) => memberHTML(m, k, it.members.length)).join('') +
+        `<button type="button" class="btn sm addmem" data-act="add-mem">+ Add person</button>`}
+    </div>`}
+  </section>`;
+}
+
+function projectPanel() {
+  return `<section class="panel">
+    <h2>Project</h2>
+    <div class="proj">
+      <button type="button" class="btn sm" data-act="save-project">Save project file</button>
+      <button type="button" class="btn sm" data-act="load-project">Open project file</button>
+      <button type="button" class="btn sm danger" data-act="reset">Reset to defaults</button>
+    </div>
+    <p class="note">Names, IDs and photos stay in this browser and are never uploaded anywhere. Changes are saved automatically here. Save a project file to keep a backup or move your work to another device.</p>
+  </section>`;
+}
+
+function renderEditor() {
+  const n = state.items.length;
+  editor.innerHTML = docPanel() +
+    state.items.map((it, i) => itemHTML(it, i, n)).join('') +
+    `<div class="addbar">
+      <button type="button" class="btn" data-act="add-section">+ Add section</button>
+      <button type="button" class="btn" data-act="add-divider">+ Add divider heading</button>
+    </div>` + projectPanel();
+  if (focusSel) {
+    const el = editor.querySelector(focusSel);
+    if (el) el.focus();
+    focusSel = null;
+  }
+}
+
+function commit(rerender) {
+  saveSoon();
+  schedulePreview();
+  if (rerender) renderEditor();
+}
+
+const findItem = el => {
+  const host = el.closest('[data-item]');
+  return host ? state.items.find(i => i.id === host.dataset.item) : null;
+};
+const findMember = (it, el) => {
+  const host = el.closest('[data-mem]');
+  return it && host ? it.members.find(m => m.id === host.dataset.mem) : null;
+};
+function move(arr, i, d) {
+  const j = i + d;
+  if (j < 0 || j >= arr.length) return false;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  return true;
+}
+
+/* ---- typing / toggles ---- */
+function onField(e) {
+  const t = e.target;
+  const value = t.type === 'checkbox' ? t.checked : t.value;
+  if (t.dataset.doc) {
+    state[t.dataset.doc] = value;
+    if (t.dataset.doc === 'accent') applyTheme();
+    commit(false);
+    return;
+  }
+  const f = t.dataset.field;
+  if (!f) return;
+  const it = findItem(t);
+  if (!it) return;
+  const m = findMember(it, t);
+  if (m) {
+    m[f] = value;
+    if (f === 'name') t.closest('[data-mem]').classList.toggle('empty', !value.trim());
+  } else {
+    it[f] = f === 'cols' ? parseInt(value, 10) : value;
+  }
+  commit(false);
+}
+editor.addEventListener('input', onField);
+editor.addEventListener('change', onField);
+
+/* ---- buttons ---- */
+let photoTarget = null;
+editor.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act;
+  const it = findItem(b);
+  const m = findMember(it, b);
+  const idx = it ? state.items.indexOf(it) : -1;
+
+  switch (act) {
+    case 'fold': it.collapsed = !it.collapsed; renderEditor(); saveSoon(); break;
+    case 'up-item': if (move(state.items, idx, -1)) commit(true); break;
+    case 'down-item': if (move(state.items, idx, 1)) commit(true); break;
+    case 'del-item': {
+      const count = it.type === 'section' ? it.members.filter(x => x.name.trim()).length : 0;
+      if (count && !confirm(`Delete "${it.name || 'this section'}" and its ${count} ${count === 1 ? 'person' : 'people'}?`)) break;
+      state.items.splice(idx, 1);
+      commit(true);
+      break;
+    }
+    case 'add-mem': {
+      const last = it.members[it.members.length - 1];
+      const nm = person(last ? last.role : 'Member');
+      it.members.push(nm);
+      focusSel = `[data-mem="${nm.id}"] [data-field="name"]`;
+      commit(true);
+      break;
+    }
+    case 'up-mem': { const k = it.members.indexOf(m); if (move(it.members, k, -1)) commit(true); break; }
+    case 'down-mem': { const k = it.members.indexOf(m); if (move(it.members, k, 1)) commit(true); break; }
+    case 'del-mem': it.members.splice(it.members.indexOf(m), 1); commit(true); break;
+    case 'photo': photoTarget = { item: it.id, mem: m.id }; $('photoInput').click(); break;
+    case 'rm-photo': m.photo = ''; commit(true); break;
+    case 'logo': $('logoInput').click(); break;
+    case 'rm-logo': state.logo = ''; commit(true); break;
+    case 'add-section': {
+      const s = section('New section', 3, [person('Member'), person('Member'), person('Member')]);
+      state.items.push(s);
+      focusSel = `[data-item="${s.id}"] .iname`;
+      commit(true);
+      break;
+    }
+    case 'add-divider': {
+      const d = divider('New heading');
+      state.items.push(d);
+      focusSel = `[data-item="${d.id}"] .iname`;
+      commit(true);
+      break;
+    }
+    case 'save-project': saveProject(); break;
+    case 'load-project': $('projectInput').click(); break;
+    case 'reset':
+      if (confirm('Reset everything to the default roster? Photos you added will be removed.')) {
+        state = defaults();
+        applyTheme();
+        commit(true);
+      }
+      break;
+  }
+});
+
+/* ---- photos ---- */
+function fileToSquare(file, size = 480) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const s = Math.min(w, h);
+      const sx = w > h ? (w - s) / 2 : 0;
+      const sy = h > w ? (h - s) * 0.2 : 0;   // favor the top so faces aren't cut off in portrait photos
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.88));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("That image format isn't supported. Use a JPG or PNG file."));
+    };
+    img.src = url;
+  });
+}
+function fileToLogo(file, max = 480) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth || 300, h = img.naturalHeight || 300;
+      const k = Math.min(1, max / Math.max(w, h));
+      const c = document.createElement('canvas');
+      c.width = Math.round(w * k); c.height = Math.round(h * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("That image format isn't supported. Use a JPG or PNG file."));
+    };
+    img.src = url;
+  });
+}
+async function setPhoto(target, file) {
+  if (!file || !file.type.startsWith('image/')) { toast('Choose an image file (JPG or PNG).'); return; }
+  try {
+    const url = await fileToSquare(file);
+    const it = state.items.find(i => i.id === target.item);
+    const m = it && it.members.find(x => x.id === target.mem);
+    if (m) { m.photo = url; commit(true); }
+  } catch (err) { toast(err.message); }
+}
+$('photoInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (f && photoTarget) setPhoto(photoTarget, f);
+});
+$('logoInput').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try { state.logo = await fileToLogo(f); commit(true); } catch (err) { toast(err.message); }
+});
+
+/* drag & drop a picture onto an avatar */
+editor.addEventListener('dragover', e => {
+  const av = e.target.closest('.av');
+  if (av) { e.preventDefault(); av.classList.add('drop'); }
+});
+editor.addEventListener('dragleave', e => {
+  const av = e.target.closest('.av');
+  if (av) av.classList.remove('drop');
+});
+editor.addEventListener('drop', e => {
+  const av = e.target.closest('.av');
+  if (!av) return;
+  e.preventDefault();
+  av.classList.remove('drop');
+  const it = findItem(av), m = findMember(it, av);
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (it && m && file) setPhoto({ item: it.id, mem: m.id }, file);
+});
+
+/* ---- project file ---- */
+const slug = () => state.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'roster';
+function saveProject() {
+  const blob = new Blob([JSON.stringify(state)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = slug() + '-project.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('projectInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const next = sanitize(JSON.parse(reader.result));
+      if (!next) throw new Error('bad file');
+      state = next;
+      applyTheme();
+      commit(true);
+      toast('Project opened.');
+    } catch (err) { toast("That file isn't a valid roster project."); }
+  };
+  reader.readAsText(f);
+});
+
+/* ================= PDF export ================= */
+const downloadBtn = $('downloadBtn');
+async function downloadPDF() {
+  if (!window.jspdf || !window.html2canvas) {
+    toast("The PDF libraries didn't load. Check your internet connection and reload the page.");
+    return;
+  }
+  const holder = $('exportHolder');
+  const overlay = $('overlay'), ovText = $('ovText');
+  downloadBtn.disabled = true;
+  overlay.hidden = false;
+  ovText.textContent = 'Preparing PDF…';
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const { sheets, hasContent } = buildSheets(holder);
+    if (!hasContent) { toast('Add at least one name before downloading.'); return; }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    for (let i = 0; i < sheets.length; i++) {
+      ovText.textContent = `Rendering page ${i + 1} of ${sheets.length}…`;
+      await new Promise(r => setTimeout(r, 40));
+      const canvas = await window.html2canvas(sheets[i], {
+        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+        windowWidth: Math.max(window.innerWidth, A4W), windowHeight: A4H + 200, scrollX: 0, scrollY: 0
+      });
+      if (i > 0) pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, 210, 297);
+    }
+    pdf.save(slug() + '.pdf');
+  } catch (err) {
+    console.error(err);
+    toast('Something went wrong while creating the PDF. Try again, or use a smaller photo.');
+  } finally {
+    holder.innerHTML = '';
+    overlay.hidden = true;
+    downloadBtn.disabled = false;
+  }
+}
+downloadBtn.addEventListener('click', downloadPDF);
+
+/* ================= Mobile tabs ================= */
+document.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  document.body.dataset.view = b.dataset.tab;
+  if (b.dataset.tab === 'preview') { renderPreview(); previewPane.scrollTop = 0; }
+});
+
+/* ================= Init ================= */
+applyTheme();
+renderEditor();
+renderPreview();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderPreview);
+})();
+</script>
+</body>
+</html>
